@@ -1,0 +1,11 @@
+ifndef PORT
+PORT=/dev/ttyUSB0
+endif
+
+JENNIC_PROG=$(TOSROOT)/packaging/jn516/JennicModuleProgrammer/Build/JennicModuleProgrammer
+JENNIC_PROG_OPTIONS=-V 10 -v -s $(PORT) -P 38400 -f $(MAIN_EXE)
+
+program:
+	@echo "   "
+	@echo "    installing $(MAIN_EXE) on $(PORT) ..."
+	$(JENNIC_PROG) $(JENNIC_PROG_OPTIONS) 

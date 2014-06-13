@@ -1,0 +1,4 @@
+
+NODEID = $(INSTALL)
+BUILD_DEPS = exe $(POST_BUILD_EXTRA_DEPS) program
+#include port.extra

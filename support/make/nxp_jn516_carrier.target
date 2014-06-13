@@ -1,0 +1,6 @@
+PLATFORM = nxp_jn516_carrier
+
+$(call TOSMake_include_platform,jn516)
+
+nxp_jn516_carrier: $(BUILD_DEPS)
+	@:

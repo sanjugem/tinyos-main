@@ -1,0 +1,102 @@
+OBJCOPY = ba-elf-objcopy
+OBJDUMP = ba-elf-objdump
+NCC = ncc
+LIBS = -lm
+
+BUILDDIR = build/$(PLATFORM)
+MAIN_EXE = $(BUILDDIR)/main.exe
+MAIN_SREC = $(BUILDDIR)/main.srec
+MAIN_IHEX = $(BUILDDIR)/main.ihex
+MAIN_MAP = $(BUILDDIR)/main.map
+INSTALL_SREC = $(MAIN_SREC).out$(if $(NODEID),-$(NODEID),)
+
+APPC = $(BUILDDIR)/app.c
+MAIN_OBJ = $(BUILDDIR)/main.o
+MAIN_ELF = $(BUILDDIR)/main.elf
+
+PFLAGS += -Wall -Wshadow -DDEFINED_TOS_AM_GROUP=$(DEFAULT_LOCAL_GROUP) $(NESC_FLAGS)
+PFLAGS += -target=$(PLATFORM) -fnesc-cfile=$(APPC)
+ifdef MSG_SIZE
+PFLAGS += -DTOSH_DATA_LENGTH=$(MSG_SIZE)
+endif
+
+BUILDLESS_DEPS += bytes
+
+ifndef NOWIRING
+include $(TINYOS_MAKE_PATH)/wiring.extra
+endif
+
+ifndef BUILD_DEPS
+  ifeq ($(filter $(BUILDLESS_DEPS),$(GOALS)),)
+    BUILD_DEPS = exe bytes $(POST_BUILD_EXTRA_DEPS)
+  endif
+endif
+
+$(if $(PROGRAM),,$(call TOSMake_include,jn516/port.extra))
+
+LINUX_CROSS_COMPILE=ba-elf
+JENNIC_CHIP ?= JN5168
+JENNIC_PCB ?= DEVKIT4
+JENNIC_STACK ?= None
+
+SDK_BASE_DIR = $(TINYOS_MAKE_PATH)/jn516/jennic-sdk-files
+#SDK_BASE_DIR = $(JENNIC_SDK_BASE_DIR)
+
+#use tinyos linker script (modifies start vectors), instead of standard jennic 
+TOS_COMPILE = TRUE
+
+include $(SDK_BASE_DIR)/Chip/Common/Build/config.mk
+include $(SDK_BASE_DIR)/Platform/Common/Build/Config.mk
+include $(SDK_BASE_DIR)/Stack/Common/Build/config.mk
+
+LDLIBS := $(addsuffix _$(JENNIC_CHIP_FAMILY),$(APPLIBS)) $(LDLIBS)
+
+LOPTS = -Wl,--gc-sections -Wl,-u_main $(LDFLAGS) -T$(LINKCMD) -Wl,--start-group  $(addprefix -l,$(LDLIBS)) -Wl,--end-group -Wl,-Map,$(MAIN_MAP)
+
+PFLAGS += -fnesc-separator=__
+
+#radio includes
+APPLIBS += MMAC
+INCFLAGS += -I$(COMPONENTS_BASE_DIR)/MAC/Include 
+PFLAGS += -DIEEE154FRAMES_ENABLED
+#########################################################################
+
+exe: exe0 bytes FORCE
+	@:
+
+exe0: builddir $(BUILD_EXTRA_DEPS) FORCE
+#	@echo "DEFAULT_LOCAL_GROUP $(DEFAULT_LOCAL_GROUP)"
+#	@echo "DEFINED_TOS_AM_GROUP $(DEFINED_TOS_AM_GROUP)"
+#	@echo "TOS_AM_GROUP $(TOS_AM_GROUP)"
+	@echo "MAIN_ELF $(TOS_AM_GROUP)"
+	@echo "OPTFLAGS $(OPTFLAGS)"
+	@echo "CFLAGS $(CFLAGS)"
+	@echo "PFLAGS $(PFLAGS)"
+	@echo "INCFLAGS $(INCFLAGS)"
+	@echo "COMPONENT $(COMPONENT)"
+	@echo "LOPTS $(LOPTS)"
+	@echo "LIBS $(LIBS)"
+	@echo
+	@echo
+	@echo "    compiling $(COMPONENT) to a $(PLATFORM) binary"
+	@echo
+	@echo "    compiling $(COMPONENT) to $(MAIN_OBJ)"
+	$(NCC) -o $(MAIN_ELF) $(OPTFLAGS) $(CFLAGS) $(PFLAGS) $(INCFLAGS) $(COMPONENT).nc $(LOPTS) $(LIBS)
+	@echo
+	@echo "    generating binary $(MAIN_EXE) from $(MAIN_ELF)"
+	$(OBJCOPY) -S -O binary $(MAIN_ELF) $(MAIN_EXE)
+	@echo
+	@echo "    compiled $(COMPONENT) to $(MAIN_EXE)"
+
+builddir: FORCE
+	mkdir -p $(BUILDDIR)
+
+bytes: FORCE
+	@$(OBJDUMP) -h $(MAIN_ELF) | perl -ne '$$b{$$1}=hex $$2 if /^\s*\d+\s*\.(text|data|bss)\s+(\S+)/; END { printf("%16d bytes in ROM\n%16d bytes in RAM\n",$$b{text}+$$b{data},$$b{data}+$$b{bss}); }'
+
+#setid: FORCE
+#	@cmd () { echo "$$@"; $$@; }; if [ x = x$(NODEID) ]; then cmd cp $(MAIN_IHEX) $(INSTALL_IHEX); else cmd $(SET_ID) --objcopy $(OBJCOPY) --objdump $(OBJDUMP) --target ihex $(MAIN_IHEX) $(INSTALL_IHEX) TOS_NODE_ID=$(NODEID) $(AMADDR)=$(NODEID); fi
+
+
+
+
